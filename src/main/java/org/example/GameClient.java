@@ -1,14 +1,14 @@
 // === client/GameClient.java ===
 package org.example;
+
 import javax.swing.*;
+import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.awt.event.*;
 import java.io.*;
 import java.net.*;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
+import java.util.List;
 
 public class GameClient extends JFrame {
     private final int TILE = 32;
@@ -21,21 +21,37 @@ public class GameClient extends JFrame {
     private Point otherPos = new Point(0, 0);
     private Point block = new Point(0, 0);
     private boolean doorOpen = false;
-    private java.util.List<String> mapRows = new ArrayList<>();
+    private final List<String> mapRows = new ArrayList<>();
 
     private final Map<Character, Image> tileSprites = new HashMap<>();
     private Image playerRed, playerBlue;
 
+    private final JButton btnShowResults = new JButton("Показать результаты");
+    private final String playerName;
+
     public GameClient() {
-        setTitle("Client");
-        setSize(600, 480);
+        playerName = JOptionPane.showInputDialog(this, "Введите имя игрока:", "Имя игрока", JOptionPane.PLAIN_MESSAGE);
+        if (playerName == null || playerName.trim().isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Имя обязательно для входа!");
+            System.exit(0);
+        }
+
+        setTitle("Client - " + playerName);
+        setSize(800, 450);
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
+        setLayout(new BorderLayout());
 
         loadSprites();
 
         GamePanel panel = new GamePanel();
-        add(panel);
+        add(panel, BorderLayout.CENTER);
+
+        JPanel bottomPanel = new JPanel();
+        bottomPanel.add(btnShowResults);
+        add(bottomPanel, BorderLayout.SOUTH);
+
+        btnShowResults.addActionListener(e -> requestResults());
 
         connect();
 
@@ -57,7 +73,9 @@ public class GameClient extends JFrame {
                         case KeyEvent.VK_RIGHT -> dx = 1;
                     }
                 }
-                out.println("MOVE:" + dx + "," + dy);
+                if(dx != 0 || dy != 0) {
+                    out.println("MOVE:" + dx + "," + dy);
+                }
             }
         });
 
@@ -66,13 +84,15 @@ public class GameClient extends JFrame {
     }
 
     private void loadSprites() {
-        Image img = load("/sprites/wall.png");
         tileSprites.put('#', load("/sprites/wall.png"));
         tileSprites.put('.', load("/sprites/floor.png"));
         tileSprites.put('K', load("/sprites/button.png"));
         tileSprites.put('D', load("/sprites/door_closed.png"));
         tileSprites.put('O', load("/sprites/door_open.png"));
         tileSprites.put('C', load("/sprites/block.png"));
+        tileSprites.put('^', load("/sprites/spikes.png"));
+        tileSprites.put('1', load("/sprites/red_only.png"));
+        tileSprites.put('2', load("/sprites/blue_only.png"));
 
         playerRed = load("/sprites/player_red.png");
         playerBlue = load("/sprites/player_blue.png");
@@ -88,10 +108,16 @@ public class GameClient extends JFrame {
             out = new PrintWriter(socket.getOutputStream(), true);
             in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 
+            // Отправляем имя игрока сразу после подключения
+            out.println("NAME:" + playerName);
+
             new Thread(() -> {
                 try {
                     String line;
                     int mapLines = 0;
+                    boolean readingResults = false;
+                    List<String[]> resultsData = new ArrayList<>();
+
                     while ((line = in.readLine()) != null) {
                         if (line.startsWith("ROLE:")) {
                             role = line.substring(5);
@@ -101,6 +127,7 @@ public class GameClient extends JFrame {
                         } else if (mapLines > 0) {
                             mapRows.add(line);
                             mapLines--;
+                            if (mapLines == 0) repaint();
                         } else if (line.startsWith("STATE:")) {
                             String[] parts = line.substring(6).split(";");
                             String[] p1 = parts[0].split(",");
@@ -129,6 +156,18 @@ public class GameClient extends JFrame {
                         } else if (line.equals("WIN")) {
                             JOptionPane.showMessageDialog(this, "🎉 Победа!");
                             System.exit(0);
+                        } else if (line.equals("RESULTS_START")) {
+                            readingResults = true;
+                            resultsData.clear();
+                        } else if (line.equals("RESULTS_END")) {
+                            readingResults = false;
+                            SwingUtilities.invokeLater(() -> showResults(resultsData));
+                        } else if (readingResults) {
+                            // Ожидаем формат: имя;время(сек);дата
+                            String[] parts = line.split(";");
+                            if (parts.length == 3) {
+                                resultsData.add(parts);
+                            }
                         }
                     }
                 } catch (IOException e) {
@@ -140,6 +179,26 @@ public class GameClient extends JFrame {
             JOptionPane.showMessageDialog(this, "Ошибка подключения к серверу");
             System.exit(1);
         }
+    }
+
+    private void requestResults() {
+        if (out != null) {
+            out.println("GET_RESULTS");
+        }
+    }
+
+    private void showResults(List<String[]> resultsData) {
+        String[] columns = {"Имя", "Время (сек)", "Дата"};
+        DefaultTableModel model = new DefaultTableModel(columns, 0);
+        for (String[] row : resultsData) {
+            model.addRow(row);
+        }
+
+        JTable table = new JTable(model);
+        JScrollPane scrollPane = new JScrollPane(table);
+        scrollPane.setPreferredSize(new Dimension(400, 300));
+
+        JOptionPane.showMessageDialog(this, scrollPane, "Результаты игр", JOptionPane.PLAIN_MESSAGE);
     }
 
     class GamePanel extends JPanel {
