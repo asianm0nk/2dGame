@@ -28,34 +28,42 @@ public class GameClient extends JFrame {
 
     private final JButton btnShowResults = new JButton("Показать результаты");
     private final String playerName;
-
+    private Rectangle resultsButtonBounds = new Rectangle(600, 320, 180, 40);
+    private GamePanel panel;
     public GameClient() {
         playerName = JOptionPane.showInputDialog(this, "Введите имя игрока:", "Имя игрока", JOptionPane.PLAIN_MESSAGE);
         if (playerName == null || playerName.trim().isEmpty()) {
             JOptionPane.showMessageDialog(this, "Имя обязательно для входа!");
             System.exit(0);
         }
-
-        setTitle("Client - " + playerName);
-        setSize(800, 450);
+        setTitle("Client");
+        setSize(800, 400);
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
-        setLayout(new BorderLayout());
+        setLayout(null); // ручное позиционирование (не BorderLayout)
 
         loadSprites();
 
-        GamePanel panel = new GamePanel();
-        add(panel, BorderLayout.CENTER);
+        panel = new GamePanel();
+        panel.setBounds(0, 0, 800, 400);
+        add(panel);
 
-        JPanel bottomPanel = new JPanel();
-        bottomPanel.add(btnShowResults);
-        add(bottomPanel, BorderLayout.SOUTH);
+        // Обработка клика по кнопке
+        panel.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (resultsButtonBounds.contains(e.getPoint())) {
+                    if (out != null) {
+                        out.println("GET_RESULTS");
+                    }
+                }
+                panel.requestFocusInWindow(); // вернуть фокус после клика
+            }
+        });
 
-        btnShowResults.addActionListener(e -> requestResults());
-
-        connect();
-
-        addKeyListener(new KeyAdapter() {
+        // Клавиши для движения
+        panel.setFocusable(true);
+        panel.addKeyListener(new KeyAdapter() {
             public void keyPressed(KeyEvent e) {
                 int dx = 0, dy = 0;
                 if (role.equals("RED")) {
@@ -73,15 +81,15 @@ public class GameClient extends JFrame {
                         case KeyEvent.VK_RIGHT -> dx = 1;
                     }
                 }
-                if(dx != 0 || dy != 0) {
-                    out.println("MOVE:" + dx + "," + dy);
-                }
+                out.println("MOVE:" + dx + "," + dy);
             }
         });
 
+        connect();
         setVisible(true);
-        panel.repaint();
+        panel.requestFocusInWindow();
     }
+
 
     private void loadSprites() {
         tileSprites.put('#', load("/sprites/wall.png"));
@@ -204,6 +212,7 @@ public class GameClient extends JFrame {
     class GamePanel extends JPanel {
         protected void paintComponent(Graphics g) {
             super.paintComponent(g);
+
             for (int y = 0; y < mapRows.size(); y++) {
                 for (int x = 0; x < mapRows.get(y).length(); x++) {
                     char tile = mapRows.get(y).charAt(x);
@@ -219,14 +228,22 @@ public class GameClient extends JFrame {
                 }
             }
 
-            // Блок (C)
+            // Блок
             g.drawImage(tileSprites.get('C'), block.x * TILE, block.y * TILE, TILE, TILE, null);
 
             // Игроки
             g.drawImage(role.equals("RED") ? playerRed : playerBlue, myPos.x * TILE, myPos.y * TILE, TILE, TILE, null);
             g.drawImage(role.equals("RED") ? playerBlue : playerRed, otherPos.x * TILE, otherPos.y * TILE, TILE, TILE, null);
+
+            // Нарисовать кнопку
+            g.setColor(Color.DARK_GRAY);
+            g.fillRect(resultsButtonBounds.x, resultsButtonBounds.y, resultsButtonBounds.width, resultsButtonBounds.height);
+            g.setColor(Color.WHITE);
+            g.setFont(new Font("Arial", Font.BOLD, 14));
+            g.drawString("Показать результаты", resultsButtonBounds.x + 10, resultsButtonBounds.y + 25);
         }
     }
+
 
     static class Point {
         int x, y;
