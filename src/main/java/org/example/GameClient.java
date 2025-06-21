@@ -1,45 +1,34 @@
-// client/GameClient.java
 package org.example;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
 import java.io.*;
 import java.net.*;
+import java.util.ArrayList;
 
 public class GameClient extends JFrame {
-    private final int TILE = 40;
+    private final int TILE = 32;
     private Socket socket;
     private PrintWriter out;
     private BufferedReader in;
 
     private String role = "RED";
     private Point myPos = new Point(1, 1);
-    private Point otherPos = new Point(13, 5);
-    private Point button = new Point(7, 3);
-    private Point door = new Point(8, 1);
-    private Point door2 = new Point(9, 1);
+    private Point otherPos = new Point(1, 1);
+    private Point block = new Point(0, 0);
     private boolean doorOpen = false;
-
-    private final char[][] map = {
-            "################".toCharArray(),
-            "#........DD....#".toCharArray(),
-            "#..............#".toCharArray(),
-            "#......K.......#".toCharArray(),
-            "#..............#".toCharArray(),
-            "#..............#".toCharArray(),
-            "################".toCharArray()
-    };
+    private java.util.List<String> mapRows = new ArrayList<>();
 
     public GameClient() {
-        setTitle("Co-op Puzzle Client");
-        setSize(640, 480);
+        setTitle("Client");
+        setSize(600, 480);
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
 
         GamePanel panel = new GamePanel();
         add(panel);
-        connectToServer();
-        setVisible(true);
+
+        connect();
 
         addKeyListener(new KeyAdapter() {
             public void keyPressed(KeyEvent e) {
@@ -51,7 +40,7 @@ public class GameClient extends JFrame {
                         case KeyEvent.VK_A -> dx = -1;
                         case KeyEvent.VK_D -> dx = 1;
                     }
-                } else if (role.equals("BLUE")) {
+                } else {
                     switch (e.getKeyCode()) {
                         case KeyEvent.VK_UP -> dy = -1;
                         case KeyEvent.VK_DOWN -> dy = 1;
@@ -59,76 +48,86 @@ public class GameClient extends JFrame {
                         case KeyEvent.VK_RIGHT -> dx = 1;
                     }
                 }
-
-                int nx = myPos.x + dx;
-                int ny = myPos.y + dy;
-                if (isFree(nx, ny)) {
-                    myPos.translate(dx, dy);
-                    out.println("MOVE:" + myPos.x + "," + myPos.y);
-                    panel.repaint();
-                }
+                out.println("MOVE:" + dx + "," + dy);
             }
         });
 
-        new Thread(() -> {
-            try {
-                String line;
-                while ((line = in.readLine()) != null) {
-                    if (line.startsWith("ROLE:")) {
-                        role = line.substring(5);
-                    } else if (line.startsWith("STATIC:")) {
-                        String[] parts = line.substring(7).split(";");
-                        String[] b = parts[0].split(",");
-                        String[] d = parts[1].split(",");
-                        button = new Point(Integer.parseInt(b[0]), Integer.parseInt(b[1]));
-                        door = new Point(Integer.parseInt(d[0]), Integer.parseInt(d[1]));
-                    } else if (line.startsWith("STATE:")) {
-                        String[] parts = line.split(";");
-                        String[] p1 = parts[0].substring(6).split(",");
-                        String[] p2 = parts[1].split(",");
-                        doorOpen = parts[2].equals("DOOR:true");
-
-                        if (role.equals("RED")) {
-                            myPos = new Point(Integer.parseInt(p1[0]), Integer.parseInt(p1[1]));
-                            otherPos = new Point(Integer.parseInt(p2[0]), Integer.parseInt(p2[1]));
-                        } else {
-                            myPos = new Point(Integer.parseInt(p2[0]), Integer.parseInt(p2[1]));
-                            otherPos = new Point(Integer.parseInt(p1[0]), Integer.parseInt(p1[1]));
-                        }
-                        panel.repaint();
-                    } else if (line.equals("WIN")) {
-                        JOptionPane.showMessageDialog(this, "🎉 Победа! Оба игрока добрались до двери!");
-                        System.exit(0);
-                    }
-                }
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }).start();
+        setVisible(true);
+        panel.repaint();
     }
 
-    private boolean isFree(int x, int y) {
-        if (x < 0 || y < 0 || y >= map.length || x >= map[0].length) return false;
-        char tile = map[y][x];
-        if (tile == '#') return false;
-        if (tile == 'D') return doorOpen;
-        return true;
+    private void connect() {
+        try {
+            socket = new Socket("localhost", 5555);
+            out = new PrintWriter(socket.getOutputStream(), true);
+            in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+
+            new Thread(() -> {
+                try {
+                    String line;
+                    int mapLines = 0;
+                    while ((line = in.readLine()) != null) {
+                        if (line.startsWith("ROLE:")) {
+                            role = line.substring(5);
+                        } else if (line.startsWith("MAP:")) {
+                            mapLines = Integer.parseInt(line.substring(4));
+                            mapRows.clear();
+                        } else if (mapLines > 0) {
+                            mapRows.add(line);
+                            mapLines--;
+                        } else if (line.startsWith("STATE:")) {
+                            String[] parts = line.substring(6).split(";");
+                            String[] p1 = parts[0].split(",");
+                            String[] p2 = parts[1].split(",");
+                            String[] b = parts[2].substring(6).split(",");
+                            boolean open = parts[3].substring(5).equals("true");
+
+                            int px1 = Integer.parseInt(p1[0]);
+                            int py1 = Integer.parseInt(p1[1]);
+                            int px2 = Integer.parseInt(p2[0]);
+                            int py2 = Integer.parseInt(p2[1]);
+                            int bx = Integer.parseInt(b[0]);
+                            int by = Integer.parseInt(b[1]);
+
+                            if (role.equals("RED")) {
+                                myPos = new Point(px1, py1);
+                                otherPos = new Point(px2, py2);
+                            } else {
+                                myPos = new Point(px2, py2);
+                                otherPos = new Point(px1, py1);
+                            }
+                            block = new Point(bx, by);
+                            doorOpen = open;
+
+                            repaint();
+                    } else if (line.equals("WIN")) {
+                            JOptionPane.showMessageDialog(this, "🎉 Победа!");
+                            System.exit(0);
+                        }
+                    }
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }).start();
+
+        } catch (IOException e) {
+            JOptionPane.showMessageDialog(this, "Ошибка подключения к серверу");
+            System.exit(1);
+        }
     }
 
     class GamePanel extends JPanel {
         protected void paintComponent(Graphics g) {
             super.paintComponent(g);
-
-            for (int y = 0; y < map.length; y++) {
-                for (int x = 0; x < map[0].length; x++) {
-                    char tile = map[y][x];
-                    if (x == door.x && y == door.y) tile = doorOpen ? '.' : 'D';
-                    if (x == button.x && y == button.y) tile = 'K';
+            for (int y = 0; y < mapRows.size(); y++) {
+                for (int x = 0; x < mapRows.get(y).length(); x++) {
+                    char tile = mapRows.get(y).charAt(x);
+                    if (tile == 'D') tile = doorOpen ? '.' : 'D';
 
                     g.setColor(switch (tile) {
                         case '#' -> Color.DARK_GRAY;
-                        case 'D' -> Color.GRAY;
                         case 'K' -> Color.GREEN;
+                        case 'D' -> Color.GRAY;
                         default -> Color.LIGHT_GRAY;
                     });
                     g.fillRect(x * TILE, y * TILE, TILE, TILE);
@@ -137,35 +136,23 @@ public class GameClient extends JFrame {
                 }
             }
 
+            // Блок
+            g.setColor(Color.ORANGE);
+            g.fillRect(block.x * TILE + 4, block.y * TILE + 4, TILE - 8, TILE - 8);
+
             // Другой игрок
             g.setColor(role.equals("RED") ? Color.BLUE : Color.RED);
             g.fillOval(otherPos.x * TILE + 5, otherPos.y * TILE + 5, TILE - 10, TILE - 10);
 
-            // Текущий игрок
+            // Мой игрок
             g.setColor(role.equals("RED") ? Color.RED : Color.BLUE);
             g.fillOval(myPos.x * TILE + 5, myPos.y * TILE + 5, TILE - 10, TILE - 10);
-
-            g.setColor(Color.BLACK);
-            g.drawString("Я: " + role, 10, getHeight() - 10);
-        }
-    }
-
-    private void connectToServer() {
-        try {
-            socket = new Socket("localhost", 5555);
-            out = new PrintWriter(socket.getOutputStream(), true);
-            in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-        } catch (IOException e) {
-            JOptionPane.showMessageDialog(this, "Не удалось подключиться к серверу");
-            System.exit(1);
         }
     }
 
     static class Point {
         int x, y;
         public Point(int x, int y) { this.x = x; this.y = y; }
-        public void translate(int dx, int dy) { x += dx; y += dy; }
-        public boolean equals(Point p) { return x == p.x && y == p.y; }
     }
 
     public static void main(String[] args) {
