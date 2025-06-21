@@ -17,11 +17,12 @@ public class GameClient extends JFrame {
     private Point otherPos = new Point(13, 5);
     private Point button = new Point(7, 3);
     private Point door = new Point(8, 1);
+    private Point door2 = new Point(9, 1);
     private boolean doorOpen = false;
 
     private final char[][] map = {
             "################".toCharArray(),
-            "#........D.....#".toCharArray(),
+            "#........DD....#".toCharArray(),
             "#..............#".toCharArray(),
             "#......K.......#".toCharArray(),
             "#..............#".toCharArray(),
