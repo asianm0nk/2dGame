@@ -1,3 +1,4 @@
+// === client/GameClient.java ===
 package org.example;
 import javax.swing.*;
 import java.awt.*;
@@ -5,6 +6,9 @@ import java.awt.event.*;
 import java.io.*;
 import java.net.*;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Objects;
 
 public class GameClient extends JFrame {
     private final int TILE = 32;
@@ -13,17 +17,22 @@ public class GameClient extends JFrame {
     private BufferedReader in;
 
     private String role = "RED";
-    private Point myPos = new Point(1, 1);
-    private Point otherPos = new Point(1, 1);
+    private Point myPos = new Point(0, 0);
+    private Point otherPos = new Point(0, 0);
     private Point block = new Point(0, 0);
     private boolean doorOpen = false;
     private java.util.List<String> mapRows = new ArrayList<>();
+
+    private final Map<Character, Image> tileSprites = new HashMap<>();
+    private Image playerRed, playerBlue;
 
     public GameClient() {
         setTitle("Client");
         setSize(600, 480);
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
+
+        loadSprites();
 
         GamePanel panel = new GamePanel();
         add(panel);
@@ -54,6 +63,23 @@ public class GameClient extends JFrame {
 
         setVisible(true);
         panel.repaint();
+    }
+
+    private void loadSprites() {
+        Image img = load("/sprites/wall.png");
+        tileSprites.put('#', load("/sprites/wall.png"));
+        tileSprites.put('.', load("/sprites/floor.png"));
+        tileSprites.put('K', load("/sprites/button.png"));
+        tileSprites.put('D', load("/sprites/door_closed.png"));
+        tileSprites.put('O', load("/sprites/door_open.png"));
+        tileSprites.put('C', load("/sprites/block.png"));
+
+        playerRed = load("/sprites/player_red.png");
+        playerBlue = load("/sprites/player_blue.png");
+    }
+
+    private Image load(String path) {
+        return new ImageIcon(Objects.requireNonNull(getClass().getResource(path))).getImage();
     }
 
     private void connect() {
@@ -100,7 +126,7 @@ public class GameClient extends JFrame {
                             doorOpen = open;
 
                             repaint();
-                    } else if (line.equals("WIN")) {
+                        } else if (line.equals("WIN")) {
                             JOptionPane.showMessageDialog(this, "🎉 Победа!");
                             System.exit(0);
                         }
@@ -122,31 +148,24 @@ public class GameClient extends JFrame {
             for (int y = 0; y < mapRows.size(); y++) {
                 for (int x = 0; x < mapRows.get(y).length(); x++) {
                     char tile = mapRows.get(y).charAt(x);
-                    if (tile == 'D') tile = doorOpen ? '.' : 'D';
+                    if (tile == 'D' && doorOpen) tile = 'O';
 
-                    g.setColor(switch (tile) {
-                        case '#' -> Color.DARK_GRAY;
-                        case 'K' -> Color.GREEN;
-                        case 'D' -> Color.GRAY;
-                        default -> Color.LIGHT_GRAY;
-                    });
-                    g.fillRect(x * TILE, y * TILE, TILE, TILE);
-                    g.setColor(Color.BLACK);
-                    g.drawRect(x * TILE, y * TILE, TILE, TILE);
+                    Image img = tileSprites.get(tile);
+                    if (img != null) {
+                        g.drawImage(img, x * TILE, y * TILE, TILE, TILE, null);
+                    } else {
+                        g.setColor(Color.PINK);
+                        g.fillRect(x * TILE, y * TILE, TILE, TILE);
+                    }
                 }
             }
 
-            // Блок
-            g.setColor(Color.ORANGE);
-            g.fillRect(block.x * TILE + 4, block.y * TILE + 4, TILE - 8, TILE - 8);
+            // Блок (C)
+            g.drawImage(tileSprites.get('C'), block.x * TILE, block.y * TILE, TILE, TILE, null);
 
-            // Другой игрок
-            g.setColor(role.equals("RED") ? Color.BLUE : Color.RED);
-            g.fillOval(otherPos.x * TILE + 5, otherPos.y * TILE + 5, TILE - 10, TILE - 10);
-
-            // Мой игрок
-            g.setColor(role.equals("RED") ? Color.RED : Color.BLUE);
-            g.fillOval(myPos.x * TILE + 5, myPos.y * TILE + 5, TILE - 10, TILE - 10);
+            // Игроки
+            g.drawImage(role.equals("RED") ? playerRed : playerBlue, myPos.x * TILE, myPos.y * TILE, TILE, TILE, null);
+            g.drawImage(role.equals("RED") ? playerBlue : playerRed, otherPos.x * TILE, otherPos.y * TILE, TILE, TILE, null);
         }
     }
 
