@@ -1,4 +1,3 @@
-// === client/GameClient.java ===
 package org.example;
 
 import javax.swing.*;
@@ -73,7 +72,7 @@ public class GameClient extends JFrame {
                         case KeyEvent.VK_RIGHT -> dx = 1;
                     }
                 }
-                if(dx != 0 || dy != 0) {
+                if (dx != 0 || dy != 0) {
                     out.println("MOVE:" + dx + "," + dy);
                 }
             }
@@ -108,8 +107,8 @@ public class GameClient extends JFrame {
             out = new PrintWriter(socket.getOutputStream(), true);
             in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 
-            // Отправляем имя игрока сразу после подключения
-            out.println("NAME:" + playerName);
+            // Отправляем имя без префикса
+            out.println(playerName);
 
             new Thread(() -> {
                 try {
@@ -163,8 +162,7 @@ public class GameClient extends JFrame {
                             readingResults = false;
                             SwingUtilities.invokeLater(() -> showResults(resultsData));
                         } else if (readingResults) {
-                            // Ожидаем формат: имя;время(сек);дата
-                            String[] parts = line.split(";");
+                            String[] parts = line.split(",");
                             if (parts.length == 3) {
                                 resultsData.add(parts);
                             }
@@ -196,9 +194,13 @@ public class GameClient extends JFrame {
 
         JTable table = new JTable(model);
         JScrollPane scrollPane = new JScrollPane(table);
-        scrollPane.setPreferredSize(new Dimension(400, 300));
 
-        JOptionPane.showMessageDialog(this, scrollPane, "Результаты игр", JOptionPane.PLAIN_MESSAGE);
+        JFrame resultsFrame = new JFrame("Результаты игр");
+        resultsFrame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+        resultsFrame.setSize(500, 400);
+        resultsFrame.setLocationRelativeTo(this);
+        resultsFrame.add(scrollPane);
+        resultsFrame.setVisible(true);
     }
 
     class GamePanel extends JPanel {
@@ -219,7 +221,7 @@ public class GameClient extends JFrame {
                 }
             }
 
-            // Блок (C)
+            // Блок
             g.drawImage(tileSprites.get('C'), block.x * TILE, block.y * TILE, TILE, TILE, null);
 
             // Игроки
