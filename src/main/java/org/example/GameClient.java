@@ -13,6 +13,8 @@ import java.util.List;
 public class GameClient extends JFrame {
     private final int TILE = 32;
     private Socket socket;
+    private static long startTime;
+
     private PrintWriter out;
     private BufferedReader in;
 
